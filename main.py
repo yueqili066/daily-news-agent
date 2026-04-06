@@ -1,55 +1,53 @@
 import os
-import feedparser
 from google import genai
 
-def run_agent():
+def run_research_agent():
     # 1. Initialize the 2026 Client
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-    # 2. Fetch Biotech News
-    news_text = ""
-    feeds = [
-        "https://www.fiercebiotech.com/biotech/rss", 
-        "https://www.biopharmadive.com/feed/"
+    # 2. Define your "Source Portfolio"
+    # You can add or remove any URLs here
+    target_sources = [
+        "https://endpts.com",             # Biotech Deep Dives
+        "https://www.fiercebiotech.com",  # Industry M&A
+        "https://www.biopharmadive.com",  # Regulatory News
+        "https://www.reuters.com/business/healthcare-pharmaceuticals/", # General Pharma
+        "https://www.statnews.com"        # Clinical Trials
     ]
+
+    # 3. The "Intelligence Command"
+    # We tell the agent exactly what to look for across these sites
+    research_query = f"""
+    Perform a high-level scan of the following websites: {', '.join(target_sources)}.
     
-    for url in feeds:
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:5]:
-                # We strip HTML tags and limit length for clarity
-                news_text += f"HEADLINE: {entry.title}\nSUMMARY: {entry.summary[:200]}\n\n"
-        except Exception as e:
-            print(f"Error fetching {url}: {e}")
-
-    # --- DEBUG: Print what we found to the GitHub log ---
-    if not news_text:
-        print("⚠️ No news found! Check if the RSS links are working.")
-        return
-    else:
-        print(f"Found {news_text.count('HEADLINE:')} headlines. Sending to AI...")
-
-    # 3. Improved Agent Prompt
-    # This tells the AI: "Here is the data, do not ask me for it."
-    system_instruction = """
-    You are a Senior Industry Intelligence Analyst. 
-    I have provided news headlines and summaries below. 
-    Your task is to analyze THIS SPECIFIC DATA and provide an executive briefing. 
-    Do NOT ask the user for more information. 
-    If no M&A is mentioned, simply state 'No major M&A reported today.'
+    Extract and summarize:
+    1. Any M&A deals announced in the last 24 hours.
+    2. Any new FDA/NMPA submissions or approvals.
+    3. Significant geopolitical shifts affecting tech or drug supply chains.
+    
+    Format the output as a '9:00 AM Executive Briefing'. 
+    If a site is behind a heavy paywall, move to the next one.
     """
 
-    user_prompt = f"Analyze the following news and provide the executive summary:\n\n{news_text}"
+    print(f"🚀 Agent is now researching {len(target_sources)} sources...")
 
-    # 4. Generate content
-    response = client.models.generate_content(
-        model="gemini-3.1-flash-lite-preview",
-        config={'system_instruction': system_instruction},
-        contents=user_prompt
-    )
-
-    print("\n--- 🚀 DAILY SUMMARY ---")
-    print(response.text)
+    try:
+        # We use the 'google_search' tool which allows the agent 
+        # to effectively "browse" the live web in 2026
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            config={
+                'tools': [{'google_search': {}}],
+                'system_instruction': "You are a professional research agent for a top-tier consulting firm."
+            },
+            contents=research_query
+        )
+        
+        print("\n--- 🚀 MULTI-SOURCE DAILY SUMMARY ---")
+        print(response.text)
+        
+    except Exception as e:
+        print(f"❌ Research Error: {e}")
 
 if __name__ == "__main__":
-    run_agent()
+    run_research_agent()
